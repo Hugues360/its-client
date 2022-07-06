@@ -172,7 +172,7 @@ async fn main() {
     }
 
     #[cfg(feature = "copycat")]
-    libits_client::pipeline::run::<CopyCat>(
+    libits_client::pipelines::producer::run::<CopyCat>(
         mqtt_options,
         mqtt_root_topic,
         region_of_responsibility,

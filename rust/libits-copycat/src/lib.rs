@@ -24,7 +24,7 @@ pub struct CopyCat {
     timer: MessageTimer<Item<Exchange>>,
 }
 
-impl Analyser for CopyCat {
+impl Analyser<Vec<Item<Exchange>>> for CopyCat {
     fn new(configuration: Arc<Configuration>) -> Self
     where
         Self: Sized,

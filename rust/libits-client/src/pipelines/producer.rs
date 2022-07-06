@@ -6,6 +6,7 @@
 //
 // Author: Frédéric GARDES <frederic.gardes@orange.com> et al.
 // Software description: This Intelligent Transportation Systems (ITS) [MQTT](https://mqtt.org/) client based on the [JSon](https://www.json.org) [ETSI](https://www.etsi.org/committee/its) specification transcription provides a ready to connect project for the mobility (connected and autonomous vehicles, road side units, vulnerable road users,...).
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver};
@@ -74,7 +75,7 @@ type FilterPipes = (
     JoinHandle<()>,
 );
 
-pub async fn run<T: Analyser>(
+pub async fn run<T: Analyser<Vec<Item<Exchange>>>>(
     mqtt_options: MqttOptions,
     mqtt_root_topic: &str,
     region_of_responsibility: bool,
@@ -283,7 +284,7 @@ fn monitor_thread(
     handle
 }
 
-fn analyser_generate_thread<T: Analyser>(
+fn analyser_generate_thread<T: Analyser<Vec<Item<Exchange>>>>(
     configuration: Arc<Configuration>,
     exchange_receiver: Receiver<Item<Exchange>>,
 ) -> AnalyzerPipes {
@@ -314,7 +315,7 @@ fn analyser_generate_thread<T: Analyser>(
     (analyser_receiver, handle)
 }
 
-fn filter_thread(
+fn filter_thread<T: Analyser<Vec<Item<Exchange>>>>(
     configuration: Arc<Configuration>,
     exchange_receiver: Receiver<(Item<Exchange>, Option<Cause>)>,
 ) -> FilterPipes {
