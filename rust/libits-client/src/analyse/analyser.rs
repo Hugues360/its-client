@@ -6,7 +6,7 @@
 //
 // Author: Frédéric GARDES <frederic.gardes@orange.com> et al.
 // Software description: This Intelligent Transportation Systems (ITS) [MQTT](https://mqtt.org/) client based on the [JSon](https://www.json.org) [ETSI](https://www.etsi.org/committee/its) specification transcription provides a ready to connect project for the mobility (connected and autonomous vehicles, road side units, vulnerable road users,...).
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use crate::analyse::configuration::Configuration;
 use crate::analyse::item::Item;
@@ -18,4 +18,12 @@ pub trait Analyser<T> {
         Self: Sized;
 
     fn analyze(&mut self, item: Item<Exchange>) -> T;
+}
+
+pub trait StatefulAnalyzer<C> {
+    fn new(configuration: Arc<Configuration>, context: Arc<RwLock<C>>) -> Self
+    where
+        Self: Sized;
+
+    fn analyze(&mut self, item: Item<Exchange>) -> Vec<Item<Exchange>>;
 }

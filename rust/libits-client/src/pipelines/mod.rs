@@ -20,8 +20,8 @@ use crate::reception::exchange::Exchange;
 use crate::reception::information::Information;
 use crate::reception::typed::Typed;
 use crate::reception::Reception;
-use log::{error, info, trace, warn};
-use rumqttc::{Event, EventLoop};
+use log::{debug, error, info, trace, warn};
+use rumqttc::{Event, EventLoop, Publish};
 use serde::de::DeserializeOwned;
 use std::any::Any;
 use std::sync::mpsc::{channel, Receiver};
@@ -31,6 +31,7 @@ use std::thread::JoinHandle;
 
 pub mod consumer;
 pub mod producer;
+pub mod async_producer;
 
 pub fn unbox<T>(value: Box<T>) -> T {
     *value
@@ -109,38 +110,30 @@ fn reader_configure_thread(
 
 async fn mqtt_client_subscribe(topic_list: &Vec<String>, client: &mut Client) {
     info!("mqtt client subscribing starting...");
-    // build the topic subscription list
     let mut topic_subscription_list = Vec::new();
-    if let Some(cam_topic) = topic_list
-        .iter()
-        .find(|&r| r.contains(CooperativeAwarenessMessage::get_type().as_str()))
-    {
-        topic_subscription_list.push(format!("{}/+/#", cam_topic));
-    }
-    if let Some(denm_topic) = topic_list
-        .iter()
-        .find(|&r| r.contains(DecentralizedEnvironmentalNotificationMessage::get_type().as_str()))
-    {
-        topic_subscription_list.push(format!("{}/+/#", denm_topic));
-    }
-    if let Some(cpm_topic) = topic_list
-        .iter()
-        .find(|&r| r.contains(CollectivePerceptionMessage::get_type().as_str()))
-    {
-        topic_subscription_list.push(format!("{}/+/#", cpm_topic));
-    }
-    if let Some(info_topic) = topic_list
-        .iter()
-        .find(|&r| r.contains(Information::get_type().as_str()))
-    {
-        // The topic of the broker we are currently connected to
-        // is always: "5GCroCo/backOutQueue/info/broker"
-        topic_subscription_list.push(format!("{}/broker", info_topic));
+
+    for topic in topic_list.iter() {
+        match topic {
+            info_topic if info_topic.contains(Information::get_type().as_str()) => {
+                topic_subscription_list.push(format!("{}/broker", info_topic));
+            }
+            _ => topic_subscription_list.push(format!("{}/+/#", topic)),
+        }
     }
 
     // NOTE: we share the topic list with the dispatcher
     client.subscribe(topic_subscription_list).await;
     info!("mqtt client subscribing finished");
+}
+
+async fn mqtt_client_publish(publish_item_receiver: Receiver<Item<Exchange>>, client: &mut Client) {
+    info!("mqtt client publishing starting...");
+    for item in publish_item_receiver {
+        debug!("we received a publish");
+        client.publish(item).await;
+        debug!("we forwarded the publish");
+    }
+    info!("mqtt client publishing finished");
 }
 
 fn mqtt_router_dispatch_thread(
@@ -165,28 +158,13 @@ fn mqtt_router_dispatch_thread(
             //initialize the router
             let router = &mut mqtt_router::Router::new();
 
-            if let Some(cam_topic) = topic_list
-                .iter()
-                .find(|&r| r.contains(CooperativeAwarenessMessage::get_type().as_str()))
-            {
-                router.add_route(cam_topic, deserialize::<Exchange>);
-            }
-            if let Some(denm_topic) = topic_list.iter().find(|&r| {
-                r.contains(DecentralizedEnvironmentalNotificationMessage::get_type().as_str())
-            }) {
-                router.add_route(denm_topic, deserialize::<Exchange>);
-            }
-            if let Some(cpm_topic) = topic_list
-                .iter()
-                .find(|&r| r.contains(CollectivePerceptionMessage::get_type().as_str()))
-            {
-                router.add_route(cpm_topic, deserialize::<Exchange>);
-            }
-            if let Some(info_topic) = topic_list
-                .iter()
-                .find(|&r| r.contains(Information::get_type().as_str()))
-            {
-                router.add_route(info_topic, deserialize::<Information>);
+            for topic in topic_list.iter() {
+                match topic {
+                    info_topic if info_topic.contains(Information::get_type().as_str()) => {
+                        router.add_route(info_topic, deserialize::<Information>);
+                    }
+                    _ => router.add_route(topic, deserialize::<Exchange>),
+                }
             }
 
             for event in event_receiver {
