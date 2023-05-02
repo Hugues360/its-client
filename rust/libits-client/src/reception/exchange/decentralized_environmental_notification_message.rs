@@ -234,6 +234,11 @@ impl DecentralizedEnvironmentalNotificationMessage {
         self.situation_container.is_some()
             && 1 == self.situation_container.as_ref().unwrap().event_type.cause
     }
+
+    pub fn is_collision_risk(&self) -> bool {
+        self.situation_container.is_some()
+            && 97 == self.situation_container.as_ref().unwrap().event_type.cause
+    }
 }
 
 impl hash::Hash for DecentralizedEnvironmentalNotificationMessage {
