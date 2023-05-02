@@ -28,7 +28,7 @@ pub struct MobilePerceivedObject {
 }
 
 impl MobilePerceivedObject {
-    pub(crate) fn new(
+    pub fn new(
         perceived_object: PerceivedObject,
         cpm_station_type: u8,
         cpm_station_id: u32,
