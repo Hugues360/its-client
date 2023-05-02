@@ -15,7 +15,7 @@ use crate::reception::exchange::mobile::{speed_from_yaw_angle, Mobile};
 use crate::reception::exchange::perceived_object::PerceivedObject;
 use crate::reception::exchange::reference_position::ReferencePosition;
 use crate::reception::typed::Typed;
-use log::{trace, warn};
+use log::trace;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

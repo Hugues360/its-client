@@ -7,36 +7,25 @@
 // Author: Nicolas BUFFON <nicolas.buffon@orange.com> et al.
 // Software description: This Intelligent Transportation Systems (ITS) [MQTT](https://mqtt.org/) client based on the [JSon](https://www.json.org) [ETSI](https://www.etsi.org/committee/its) specification transcription provides a ready to connect project for the mobility (connected and autonomous vehicles, road side units, vulnerable road users,...).
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use threadpool::ThreadPool;
 
 use log::{debug, error, info, trace, warn};
-use rumqttc::{Event, EventLoop, Publish};
-use serde::de::DeserializeOwned;
 
-use crate::analyse::analyser::{Analyser, StatefulAnalyzer};
+use crate::analyse::analyser::StatefulAnalyzer;
 use crate::analyse::cause::Cause;
 use crate::analyse::configuration::Configuration;
 use crate::analyse::item::Item;
-use crate::monitor;
-use crate::mqtt::mqtt_client::{listen, Client};
-use crate::mqtt::mqtt_router;
-use crate::pipelines::{monitor_thread, mqtt_client_listen_thread, mqtt_client_publish, mqtt_client_subscribe, mqtt_router_dispatch_thread, reader_configure_thread};
-use crate::reception::exchange::collective_perception_message::CollectivePerceptionMessage;
-use crate::reception::exchange::cooperative_awareness_message::CooperativeAwarenessMessage;
-use crate::reception::exchange::decentralized_environmental_notification_message::DecentralizedEnvironmentalNotificationMessage;
-use crate::reception::exchange::map_extended_message::MAPExtendedMessage;
-use crate::reception::exchange::signal_phase_and_timing_extended_message::SignalPhaseAndTimingExtendedMessage;
+use crate::mqtt::mqtt_client::Client;
+use crate::pipelines::{
+    monitor_thread, mqtt_client_listen_thread, mqtt_client_publish, mqtt_client_subscribe,
+    mqtt_router_dispatch_thread, reader_configure_thread,
+};
 use crate::reception::exchange::Exchange;
-use crate::reception::information::Information;
-use crate::reception::typed::Typed;
-use crate::reception::Reception;
 
 pub async fn run<T: StatefulAnalyzer<C>, C: Send + Sync + 'static>(
     mqtt_host: &str,
@@ -90,23 +79,35 @@ pub async fn run<T: StatefulAnalyzer<C>, C: Send + Sync + 'static>(
             monitoring_receiver,
         );
 
-        let (load_balancer_handle, mut receivers) = load_balancer_thread(item_receiver);
+        let (_, mut receivers) = load_balancer_thread(item_receiver);
 
         // in parallel, analyse exchanges
         let (analyser_item_sender, analyser_item_receiver) = channel();
         let mut analyser_handles = Vec::new();
-        analyser_handles.push(
-            analyser_generate_thread::<T, C>(configuration.clone(), receivers.remove(0), analyser_item_sender.clone(), context.clone())
-        );
-        analyser_handles.push(
-            analyser_generate_thread::<T, C>(configuration.clone(), receivers.remove(0), analyser_item_sender.clone(), context.clone())
-        );
-        analyser_handles.push(
-            analyser_generate_thread::<T, C>(configuration.clone(), receivers.remove(0), analyser_item_sender.clone(), context.clone())
-        );
-        analyser_handles.push(
-            analyser_generate_thread::<T, C>(configuration.clone(), receivers.remove(0), analyser_item_sender, context.clone())
-        );
+        analyser_handles.push(analyser_generate_thread::<T, C>(
+            configuration.clone(),
+            receivers.remove(0),
+            analyser_item_sender.clone(),
+            context.clone(),
+        ));
+        analyser_handles.push(analyser_generate_thread::<T, C>(
+            configuration.clone(),
+            receivers.remove(0),
+            analyser_item_sender.clone(),
+            context.clone(),
+        ));
+        analyser_handles.push(analyser_generate_thread::<T, C>(
+            configuration.clone(),
+            receivers.remove(0),
+            analyser_item_sender.clone(),
+            context.clone(),
+        ));
+        analyser_handles.push(analyser_generate_thread::<T, C>(
+            configuration.clone(),
+            receivers.remove(0),
+            analyser_item_sender,
+            context.clone(),
+        ));
 
         // read information
         let reader_configure_handle =
@@ -244,24 +245,19 @@ fn load_balancer_thread(
         .name("analyser-generator".into())
         .spawn(move || {
             let mut index = 0;
-            let senders: [Sender<Item<Exchange>>; 4] = [
-                sender_1,
-                sender_2,
-                sender_3,
-                sender_4,
-            ];
+            let senders: [Sender<Item<Exchange>>; 4] = [sender_1, sender_2, sender_3, sender_4];
 
             for item in exchange_receiver {
                 match senders[index].send(item) {
                     Ok(_) => (),
-                    Err(e) => {
-                        // TODO
+                    Err(_) => {
+                        todo!("error not managed")
                     }
                 }
                 index = (index + 1) % 4;
             }
-        }
-    ).unwrap();
+        })
+        .unwrap();
 
     (handle, receivers)
 }

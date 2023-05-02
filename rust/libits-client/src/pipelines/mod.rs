@@ -13,15 +13,12 @@ use crate::analyse::item::Item;
 use crate::monitor;
 use crate::mqtt::mqtt_client::{listen, Client};
 use crate::mqtt::mqtt_router;
-use crate::reception::exchange::collective_perception_message::CollectivePerceptionMessage;
-use crate::reception::exchange::cooperative_awareness_message::CooperativeAwarenessMessage;
-use crate::reception::exchange::decentralized_environmental_notification_message::DecentralizedEnvironmentalNotificationMessage;
 use crate::reception::exchange::Exchange;
 use crate::reception::information::Information;
 use crate::reception::typed::Typed;
 use crate::reception::Reception;
 use log::{debug, error, info, trace, warn};
-use rumqttc::{Event, EventLoop, Publish};
+use rumqttc::{Event, EventLoop};
 use serde::de::DeserializeOwned;
 use std::any::Any;
 use std::sync::mpsc::{channel, Receiver};
@@ -29,9 +26,9 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
+pub mod async_producer;
 pub mod consumer;
 pub mod producer;
-pub mod async_producer;
 
 pub fn unbox<T>(value: Box<T>) -> T {
     *value
