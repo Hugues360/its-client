@@ -250,8 +250,8 @@ fn load_balancer_thread(
             for item in exchange_receiver {
                 match senders[index].send(item) {
                     Ok(_) => (),
-                    Err(_) => {
-                        todo!("error not managed")
+                    Err(e) => {
+                        error!("failed to send: {e}")
                     }
                 }
                 index = (index + 1) % 4;

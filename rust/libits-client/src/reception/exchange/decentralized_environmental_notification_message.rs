@@ -6,7 +6,7 @@
 //
 // Author: Frédéric GARDES <frederic.gardes@orange.com> et al.
 // Software description: This Intelligent Transportation Systems (ITS) [MQTT](https://mqtt.org/) client based on the [JSon](https://www.json.org) [ETSI](https://www.etsi.org/committee/its) specification transcription provides a ready to connect project for the mobility (connected and autonomous vehicles, road side units, vulnerable road users,...).
-use std::{cmp, hash};
+use std::hash;
 
 use serde::{Deserialize, Serialize};
 
@@ -143,11 +143,14 @@ impl DecentralizedEnvironmentalNotificationMessage {
             sequence_number,
             etsi_timestamp,
             94,
-            Option::Some(0), // FIXME remove it when the gateway will accept it
+            Some(0), // FIXME remove it when the gateway will accept it
             None,
             None,
             Some(0),
             event_position_heading,
+            // 10 seconds to reduce the TTL
+            Some(10),
+            Some(200),
         )
     }
 
@@ -176,7 +179,66 @@ impl DecentralizedEnvironmentalNotificationMessage {
             relevance_traffic_direction,
             event_speed,
             event_position_heading,
+            // 10 seconds to reduce the TTL
+            Some(10),
+            Some(200),
         )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_collision_risk(
+        station_id: u32,
+        originating_station_id: u32,
+        event_position: ReferencePosition,
+        sequence_number: u16,
+        etsi_timestamp: u128,
+        subcause: Option<u8>,
+        relevance_distance: Option<u8>,
+        relevance_traffic_direction: Option<u8>,
+        event_speed: Option<u16>,
+        event_position_heading: Option<u16>,
+    ) -> Self {
+        // collisionRisk
+        Self::new(
+            station_id,
+            originating_station_id,
+            event_position,
+            sequence_number,
+            etsi_timestamp,
+            97,
+            subcause,
+            relevance_distance,
+            relevance_traffic_direction,
+            event_speed,
+            event_position_heading,
+            // 1 second to reduce the TTL
+            Some(1),
+            Some(200),
+        )
+    }
+
+    pub fn update_collision_risk(
+        mut denm: Self,
+        event_position: ReferencePosition,
+        etsi_timestamp: u128,
+        relevance_distance: Option<u8>,
+        relevance_traffic_direction: Option<u8>,
+        event_speed: Option<u16>,
+        event_position_heading: Option<u16>,
+    ) -> Self {
+        // collisionRisk
+        denm.management_container.event_position = event_position;
+        denm.management_container.reference_time = etsi_timestamp as u64;
+        denm.management_container.relevance_distance = relevance_distance;
+        denm.management_container.relevance_traffic_direction = relevance_traffic_direction;
+        if event_speed.is_some() || event_position_heading.is_some() {
+            denm.location_container = Option::from(LocationContainer {
+                event_speed,
+                event_position_heading,
+                ..Default::default()
+            });
+        }
+        denm
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -192,6 +254,8 @@ impl DecentralizedEnvironmentalNotificationMessage {
         relevance_traffic_direction: Option<u8>,
         event_speed: Option<u16>,
         event_position_heading: Option<u16>,
+        validity_duration: Option<u32>,
+        transmission_interval: Option<u16>,
     ) -> Self {
         Self {
             protocol_version: 2,
@@ -205,9 +269,9 @@ impl DecentralizedEnvironmentalNotificationMessage {
                 detection_time: etsi_timestamp as u64,
                 reference_time: etsi_timestamp as u64,
                 event_position,
-                // 10 seconds to reduce the TTL
-                validity_duration: Option::Some(10),
-                station_type: Option::Some(5),
+                validity_duration,
+                transmission_interval,
+                station_type: Some(5),
                 relevance_distance,
                 relevance_traffic_direction,
                 ..Default::default()
@@ -247,9 +311,9 @@ impl hash::Hash for DecentralizedEnvironmentalNotificationMessage {
     }
 }
 
-impl cmp::Eq for DecentralizedEnvironmentalNotificationMessage {}
+impl Eq for DecentralizedEnvironmentalNotificationMessage {}
 
-impl cmp::PartialEq for DecentralizedEnvironmentalNotificationMessage {
+impl PartialEq for DecentralizedEnvironmentalNotificationMessage {
     fn eq(&self, other: &Self) -> bool {
         self.management_container == other.management_container
     }
@@ -324,7 +388,7 @@ impl Default for ManagementContainer {
     }
 }
 
-impl cmp::PartialEq for ManagementContainer {
+impl PartialEq for ManagementContainer {
     fn eq(&self, other: &Self) -> bool {
         self.action_id == other.action_id
     }
