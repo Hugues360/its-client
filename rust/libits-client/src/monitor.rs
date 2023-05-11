@@ -7,6 +7,7 @@
 // Author: Frédéric GARDES <frederic.gardes@orange.com> et al.
 // Software description: This Intelligent Transportation Systems (ITS) [MQTT](https://mqtt.org/) client based on the [JSon](https://www.json.org) [ETSI](https://www.etsi.org/committee/its) specification transcription provides a ready to connect project for the mobility (connected and autonomous vehicles, road side units, vulnerable road users,...).
 use crate::analyse::cause::Cause;
+use crate::reception::exchange::decentralized_environmental_notification_message::SituationContainer;
 use crate::reception::exchange::message::Message;
 use crate::reception::exchange::Exchange;
 use crate::reception::mortal::now;
@@ -37,7 +38,7 @@ pub fn monitor(
         Message::DENM(denm) => {
             // log to monitoring platform
             println!(
-                "{} {} {} {} {}/{}/{}/{}/{}{} at {}",
+                "{} {} {} {} {}/{}/{}/{}/{}{}{} at {}",
                 component,
                 exchange.type_field,
                 direction,
@@ -47,6 +48,7 @@ pub fn monitor(
                 denm.management_container.action_id.sequence_number,
                 denm.management_container.reference_time,
                 denm.management_container.detection_time,
+                get_information_quality_str(&denm.situation_container),
                 get_cause_str(cause),
                 now()
             );
@@ -91,6 +93,16 @@ pub fn monitor(
             );
         }
     };
+}
+
+fn get_information_quality_str(situation_container: &Option<SituationContainer>) -> String {
+    match situation_container {
+        Some(container) => match container.information_quality {
+            Some(quality) => format!("/quality:{}", quality),
+            None => String::new(),
+        },
+        None => String::new(),
+    }
 }
 
 fn get_cause_str(cause: Option<Cause>) -> String {
