@@ -213,7 +213,7 @@ impl DecentralizedEnvironmentalNotificationMessage {
             event_speed,
             event_position_heading,
             // 1 second to reduce the TTL
-            Some(1),
+            Some(2),
             Some(200),
         )
     }
