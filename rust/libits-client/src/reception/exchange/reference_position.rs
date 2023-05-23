@@ -93,14 +93,21 @@ impl ReferencePosition {
         )
     }
 
-    pub fn get_offset_destination(&self, easting_offset: f64, northing_offset: f64) -> Self {
-        let origin = self.as_geo_point();
-        let ruler: CheapRuler<f64> = CheapRuler::new(origin.y(), DistanceUnit::Meters);
-        let destination = ruler.offset(&origin, easting_offset, northing_offset);
+    pub fn get_offset_destination(&self, easting_offset: f64, northing_offset: f64, up_offset: f64) -> Self {
+        let (latitude, longitude, altitude) = map_3d::enu2geodetic(
+            easting_offset,
+            northing_offset,
+            up_offset,
+            get_coordinate(self.latitude).to_radians(),
+            get_coordinate(self.longitude).to_radians(),
+            self.altitude.into(),
+            map_3d::Ellipsoid::WGS84,
+        );
+
         ReferencePosition {
-            longitude: get_etsi_coordinate(destination.x()),
-            latitude: get_etsi_coordinate(destination.y()),
-            altitude: self.altitude,
+            latitude: get_etsi_coordinate(map_3d::rad2deg(latitude)),
+            longitude: get_etsi_coordinate(map_3d::rad2deg(longitude)),
+            altitude: altitude as i32,
         }
     }
 
@@ -118,8 +125,14 @@ impl ReferencePosition {
         let reference_ecef = anchor.to_ecef();
         let relative_ecef = self.to_ecef();
 
-        let latitude = get_coordinate(anchor.latitude).to_radians();
-        let longitude = get_coordinate(anchor.longitude).to_radians();
+        // let latitude = get_coordinate(anchor.latitude).to_radians();
+        // let longitude = get_coordinate(anchor.longitude).to_radians();
+
+        let mut latitude = get_coordinate(anchor.latitude);
+        let mut longitude = get_coordinate(anchor.longitude);
+
+        latitude = latitude.to_radians();
+        longitude = longitude.to_radians();
 
         let reference_matrix = arr2(&[
             [-longitude.sin(), longitude.cos(), 0.],
@@ -181,8 +194,12 @@ impl fmt::Display for ReferencePosition {
 }
 
 fn get_coordinate(etsi_coordinate: i32) -> f64 {
-    let base: i32 = 10;
-    etsi_coordinate as f64 / base.pow(COORDINATE_SIGNIFICANT_DIGIT as u32) as f64
+    let base: f64 = 10.;
+    let divider = base.powf(f64::from(COORDINATE_SIGNIFICANT_DIGIT));
+    let etsi_as_f64 = etsi_coordinate as f64;
+    let divided = etsi_as_f64 / divider;
+    let breakpoint = divided;
+    divided
 }
 
 fn get_etsi_coordinate(coordinate: f64) -> i32 {
@@ -193,6 +210,16 @@ fn get_etsi_coordinate(coordinate: f64) -> i32 {
 fn get_altitude(etsi_altitude: i32) -> f64 {
     let base: i32 = 10;
     etsi_altitude as f64 / base.pow(ALTITUDE_SIGNIFICANT_DIGIT as u32) as f64
+}
+
+fn geodetic_to_ecef(latitude: f64, longitude: f64, altitude: f64) -> (f64, f64, f64) {
+    let n_phi = prime_vertical_radius(latitude);
+
+    let x = (n_phi + altitude) * latitude.cos() * longitude.cos();
+    let y = (n_phi + altitude) * latitude.cos() * longitude.sin();
+    let z = ((1. - ellipsoid_flattening()).powf(2.) * n_phi + altitude) * latitude.sin();
+
+    (x, y, z)
 }
 
 fn prime_vertical_radius(phi: f64) -> f64 {
@@ -208,7 +235,7 @@ fn ellipsoid_flattening() -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::reception::exchange::reference_position::get_etsi_coordinate;
+    use crate::reception::exchange::reference_position::{geodetic_to_ecef, get_coordinate, get_etsi_coordinate};
     use navigation::Location;
 
     use crate::reception::exchange::ReferencePosition;
@@ -387,7 +414,7 @@ mod tests {
             altitude: 0,
         };
 
-        let offset_destination = reference_point.get_offset_destination(0., 100.);
+        let offset_destination = reference_point.get_offset_destination(0., 100., 0.);
 
         assert_eq!(offset_destination.latitude, expected_destination.latitude);
         assert_eq!(offset_destination.longitude, expected_destination.longitude);
@@ -406,7 +433,7 @@ mod tests {
             altitude: 0,
         };
 
-        let offset_destination = reference_point.get_offset_destination(100., 0.);
+        let offset_destination = reference_point.get_offset_destination(100., 0., 0.);
 
         assert_eq!(offset_destination.latitude, expected_destination.latitude);
         assert_eq!(offset_destination.longitude, expected_destination.longitude);
@@ -594,5 +621,74 @@ mod tests {
         assert_eq!(x_distance.round(), expected_x_distance);
         assert_eq!(y_distance.round(), expected_y_distance);
         assert_eq!(z_distance.round(), expected_z_distance);
+    }
+
+    #[test]
+    fn geodetic_to_enu_same_point_gives_zero_relative_distance() {
+        let reference_point = ReferencePosition {
+            latitude: 488417860,
+            longitude: 23678940,
+            altitude: 0,
+        };
+        let relative_point = ReferencePosition {
+            latitude: 488417860,
+            longitude: 23678940,
+            altitude: 0,
+        };
+        let expected_x_distance = 0.;
+        let expected_y_distance = 0.;
+        let expected_z_distance = 0.;
+
+        let (x_distance, y_distance, z_distance) = relative_point.to_enu(&reference_point);
+
+        assert_eq!(x_distance.round(), expected_x_distance);
+        assert_eq!(y_distance.round(), expected_y_distance);
+        assert_eq!(z_distance.round(), expected_z_distance);
+    }
+
+    #[test]
+    fn geo_to_enu_known_points() {
+        let reference_point = ReferencePosition {
+            latitude: 488417860,
+            longitude: 23678940,
+            altitude: 9,
+        };
+
+        let relative_point = ReferencePosition {
+            latitude: 488419388,
+            longitude: 23679757,
+            altitude: 9,
+        };
+        let expected_x_distance = 625.;
+        let expected_y_distance = 1769.;
+        let expected_z_distance = 0.;
+
+        // let (x_distance, y_distance, z_distance) = relative_point.to_enu(&reference_point);
+        let (x_distance, y_distance, z_distance) = map_3d::geodetic2enu(
+            get_coordinate(relative_point.latitude).to_radians(),
+            get_coordinate(relative_point.longitude).to_radians(),
+            relative_point.altitude.into(),
+            get_coordinate(reference_point.latitude).to_radians(),
+            get_coordinate(reference_point.longitude).to_radians(),
+            reference_point.altitude.into(),
+            map_3d::Ellipsoid::WGS84,
+        );
+
+        assert_eq!(x_distance, expected_x_distance);
+        assert_eq!(y_distance, expected_y_distance);
+        assert_eq!(z_distance, expected_z_distance);
+    }
+
+    #[test]
+    fn test_geodetic_to_ecef() {
+        let radians_latitude: f64 =  0.85244997825447111;
+        let radians_longitude: f64 =  0.04132754663821861;
+        let altitude: f64 = 0.;
+
+        let (x, y, z) = geodetic_to_ecef(radians_latitude, radians_longitude, altitude);
+
+        assert_eq!(x, 6377434.16);
+        assert_eq!(z, 4600.06);
+        assert_eq!(z, 94255.63);
     }
 }
