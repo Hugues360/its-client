@@ -18,6 +18,7 @@ use std::any::type_name;
 use std::fmt;
 use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
+use crate::client::configuration::Configuration;
 
 /// SPATEM representation
 ///
@@ -48,7 +49,7 @@ impl Content for SignalPhaseAndTimingExtendedMessage {
     }
 
     /// TODO implement this (issue [#96](https://github.com/Orange-OpenSource/its-client/issues/96))
-    fn appropriate(&mut self) {
+    fn appropriate(&mut self, _configuration: &Configuration, _timestamp: u64) {
         todo!()
     }
 

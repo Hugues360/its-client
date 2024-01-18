@@ -11,12 +11,13 @@ use crate::exchange::message::content_error::ContentError;
 use crate::exchange::mortal::Mortal;
 use crate::mobility::mobile::Mobile;
 use enum_dispatch::enum_dispatch;
+use crate::client::configuration::Configuration;
 
 #[enum_dispatch(Message)]
 pub trait Content {
     fn get_type(&self) -> &str;
 
-    fn appropriate(&mut self);
+    fn appropriate(&mut self, configuration: &Configuration, timestam: u64);
 
     fn as_mobile(&self) -> Result<&dyn Mobile, ContentError>;
 

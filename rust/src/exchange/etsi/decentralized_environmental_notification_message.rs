@@ -19,6 +19,7 @@ use crate::exchange::mortal::Mortal;
 use crate::mobility::mobile::Mobile;
 use crate::mobility::position::Position;
 use serde::{Deserialize, Serialize};
+use crate::client::configuration::Configuration;
 
 #[serde_with::skip_serializing_none]
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -340,7 +341,7 @@ impl Content for DecentralizedEnvironmentalNotificationMessage {
     }
 
     /// TODO implement this (issue [#96](https://github.com/Orange-OpenSource/its-client/issues/96))
-    fn appropriate(&mut self) {
+    fn appropriate(&mut self, _configuration: &Configuration, _timestamp: u64) {
         todo!()
     }
 

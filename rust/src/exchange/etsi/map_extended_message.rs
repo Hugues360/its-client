@@ -20,6 +20,7 @@ use crate::mobility::position::{distance_to_line, position_from_degrees, Positio
 use serde::{Deserialize, Serialize};
 use serde_repr::Deserialize_repr;
 use std::hash::{Hash, Hasher};
+use crate::client::configuration::Configuration;
 
 /// MAPEM representation
 ///
@@ -49,7 +50,7 @@ impl Content for MAPExtendedMessage {
     }
 
     /// TODO implement this (issue [#96](https://github.com/Orange-OpenSource/its-client/issues/96))
-    fn appropriate(&mut self) {
+    fn appropriate(&mut self, _configuration: &Configuration, _timestamp: u64) {
         todo!()
     }
 
