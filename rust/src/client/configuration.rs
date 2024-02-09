@@ -10,12 +10,13 @@
 use crate::client::configuration::configuration_error::ConfigurationError;
 use crate::client::configuration::node_configuration::NodeConfiguration;
 use ini::{Ini, Properties};
-use rumqttc::MqttOptions;
+use rumqttc::{MqttOptions, TlsConfiguration, Transport};
 use std::any::type_name;
 
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::RwLock;
+use log::info;
 
 use crate::client::configuration::configuration_error::ConfigurationError::{
     FieldNotFound, MissingMandatoryField, MissingMandatorySection, NoCustomSettings, NoPassword,
@@ -94,6 +95,7 @@ impl Configuration {
     }
 }
 
+// FIXME maybe move this into a dedicated .rs file
 struct MqttOptionWrapper(MqttOptions);
 impl TryFrom<&Properties> for MqttOptionWrapper {
     type Error = ConfigurationError;
@@ -115,6 +117,38 @@ impl TryFrom<&Properties> for MqttOptionWrapper {
         }
 
         // TODO manage other optional
+
+        let use_tls = get_optional_from_section::<bool>("use_tls", &properties).unwrap_or_else(|e| {
+            info!("TLS disabled: {}", e);
+            false
+        });
+        let use_websocket = get_optional_from_section::<bool>("use_websocket", &properties).unwrap_or_else(|e| {
+            info!("WebSocket disabled: {}", e);
+            false
+        });
+
+        if use_tls {
+            let ca_path = get_optional_from_section::<String>("tls_certificate", &properties)
+                .expect("TLS enabled but no certificate path provided");
+            let ca: Vec<u8> = std::fs::read(ca_path).expect("Failed to read TLS certificate");
+
+            // FIXME allow to configure ALPN and auth
+            let tls_configuration = TlsConfiguration::Simple {
+                ca,
+                alpn: None,
+                client_auth: None
+            };
+
+            let transport = if use_websocket {
+                Transport::Wss(tls_configuration)
+            } else {
+                Transport::Tls(tls_configuration)
+            };
+
+            mqtt_options.set_transport(transport);
+        } else if use_websocket {
+            mqtt_options.set_transport(Transport::Ws);
+        }
 
         Ok(MqttOptionWrapper(mqtt_options))
     }
